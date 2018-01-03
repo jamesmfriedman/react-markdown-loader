@@ -17,9 +17,22 @@ const except = require('except');
  * @returns {String}              - React Component
  */
 module.exports = function build(markdown) {
-  let doImports = 'import React from \'react\';\n';
+  let doImports = '';
   const imports = markdown.attributes.imports || {};
-  const jsx = markdown.html.replace(/class=/g, 'className=');
+  let inSource = false;
+
+  const importRegex = /import(?:["'\s]*([\w*{}\n, ]+)from\s*)?["'\s].*([@\w/_-]+)["'\s].*/g;
+
+  const jsx = markdown.html
+    .replace(/class=/g, 'className=')
+    .replace(importRegex, v => {
+      if (v.includes('<')) {
+        return v;
+      } else {
+        doImports += v + '\n';
+        return '';
+      }
+    });
 
   const frontMatterAttributes = except(markdown.attributes, 'imports');
 
@@ -31,15 +44,46 @@ module.exports = function build(markdown) {
     }
   }
 
+  doImports = [...new Set(doImports.match(importRegex))].reduce((acc, val) => {
+    const parts = val.split(' from ');
+    const module = parts[1]
+      .replace(/'/g, '')
+      .replace(/"/g, '')
+      .replace(/;/g, '');
+    acc[module] = acc[module] || [];
+    const vars = parts[0]
+      .replace('import', '')
+      .replace(/\{/g, '')
+      .replace(/\}/g, '')
+      .split(',')
+      .map(v => v.trim());
+
+    acc[module] = acc[module].concat(vars);
+    return acc;
+  }, {});
+
+  doImports = Object.entries(doImports)
+    .map(([module, vars]) => {
+      return `import {${[...new Set(vars)]}} from '${module}';`;
+    })
+    .join('\n');
+
   return `
+import React from 'react';
 ${doImports}
 
 export const attributes = ${JSON.stringify(camelize(frontMatterAttributes))};
-export default function() {
-  return (
-    <div>
-      ${jsx}
-    </div>
-  );
+export default class extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = {};
+  }
+  render() {
+    return (
+      <div>
+        ${jsx}
+      </div>
+    );
+  }
 };`;
 };
