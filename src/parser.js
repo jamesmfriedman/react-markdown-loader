@@ -15,14 +15,40 @@ const md = new Remarkable();
  * @param   {string} langClass  CSS class for the code block
  * @returns {string}            Code block with souce and run code
  */
-function codeBlockTemplate(exampleRun, exampleSrc, langClass) {
+function codeOnlyTemplate(exampleSrc, langClass) {
   return `
-<div class="example">
-  <div class="run">${exampleRun}</div>
+<div class="example code-only">
   <div class="source">
-    <pre${!langClass ? '' : ` class="${langClass}"`}><code${!langClass ? '' : ` class="${langClass}"`}>
+    <pre${!langClass ? '' : ` class="${langClass}"`}><code${
+    !langClass ? '' : ` class="${langClass}"`
+  }>
       ${exampleSrc}
     </code></pre>
+  </div>
+</div>`;
+}
+
+function renderAndCodeTemplate(exampleRun, exampleSrc, langClass) {
+  return `
+<div class="example render-with-code">
+  <div class="run">
+    ${exampleRun}
+  </div>
+  <div class="source">
+    <pre${!langClass ? '' : ` class="${langClass}"`}><code${
+    !langClass ? '' : ` class="${langClass}"`
+  }>
+      ${exampleSrc}
+    </code></pre>
+  </div>
+</div>`;
+}
+
+function renderOnlyTemplate(exampleRun, langClass) {
+  return `
+<div class="example render-only">
+  <div class="run">
+    ${exampleRun}
   </div>
 </div>`;
 }
@@ -35,14 +61,16 @@ function codeBlockTemplate(exampleRun, exampleSrc, langClass) {
  * @param   {Function} highlight  - Code highlight function
  * @returns {String}                Code block with souce and run code
  */
-function parseCodeBlock(code, lang, langPrefix, highlight) {
+function parseCodeBlock(code, langs, langPrefix, highlight) {
   let codeBlock = escapeHtml(code);
+  const lang = langs[0];
 
   if (highlight) {
     codeBlock = highlight(code, lang);
   }
 
   const langClass = !lang ? '' : `${langPrefix}${escape(lang, true)}`;
+
   const jsx = code;
 
   codeBlock = codeBlock
@@ -51,8 +79,12 @@ function parseCodeBlock(code, lang, langPrefix, highlight) {
     .replace(/{"{"{/g, '{"{"}')
     .replace(/(\n)/g, '{"\\n"}')
     .replace(/class=/g, 'className=');
-
-  return codeBlockTemplate(jsx, codeBlock, langClass);
+  if (~langs.indexOf('renderOnly')) {
+    return renderOnlyTemplate(jsx, langClass);
+  } else if (~langs.indexOf('render')) {
+    return renderAndCodeTemplate(jsx, codeBlock, langClass);
+  }
+  return codeOnlyTemplate(codeBlock, langClass);
 }
 
 /**
@@ -83,19 +115,18 @@ function parseMarkdown(markdown) {
         const language = Prism.languages[lang] || Prism.languages.autoit;
         return Prism.highlight(code, language);
       },
-      xhtmlOut: true
+      xhtmlOut: true,
     };
 
     md.set(options);
-
-    md.renderer.rules.fence_custom.render = (tokens, idx, opts) => {
+    md.renderer.rules.fence = (tokens, idx, opts) => {
       // gets tags applied to fence blocks ```react html
       const codeTags = tokens[idx].params.split(/\s+/g);
       return parseCodeBlock(
         tokens[idx].content,
-        codeTags[codeTags.length - 1],
+        codeTags,
         opts.langPrefix,
-        opts.highlight
+        opts.highlight,
       );
     };
 
@@ -130,9 +161,8 @@ function parse(markdown) {
 }
 
 module.exports = {
-  codeBlockTemplate,
   parse,
   parseCodeBlock,
   parseFrontMatter,
-  parseMarkdown
+  parseMarkdown,
 };
