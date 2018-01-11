@@ -25,6 +25,7 @@ module.exports = function build(markdown) {
 
   const jsx = markdown.html
     .replace(/class=/g, 'className=')
+    .replace(/spellcheck=".+?"/g, '')
     .replace(importRegex, v => {
       if (v.includes('<')) {
         return v;
