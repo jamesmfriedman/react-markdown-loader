@@ -65,6 +65,9 @@ module.exports = function build(markdown) {
 
   doImports = Object.entries(doImports)
     .map(([module, vars]) => {
+      if (vars.length === 1 && vars[0].startsWith('*')) {
+        return `import ${[...new Set(vars)]} from '${module}';`;
+      }
       return `import {${[...new Set(vars)]}} from '${module}';`;
     })
     .join('\n');
